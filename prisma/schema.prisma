@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ✅ Enum لتحديد أدوار المستخدمين
+enum UserRole {
+  employee         // موظف
+  accountant       // محاسب
+  finance_manager  // مدير مالي
+  company_manager  // مدير الشركة
+  admin            // مدير النظام
+}
+
+// ✅ جدول المستخدمين
+model User {
+  id          Int      @id @default(autoincrement())
+  nameAr      String
+  nameEn      String
+  username    String   @unique
+  email       String   @unique
+  phone       String   @unique
+  password    String
+  role        UserRole
+  isActivated Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // ✅ العلاقات
+  companyBranchId Int?
+  companyBranch   CompanyBranch?  @relation(fields: [companyBranchId], references: [id], name: "UserCompanyBranch")
+
+  chatGroups      ChatGroup[]     @relation("UserChatGroups")
+  payrolls        Payroll[]
+  payrollReviews  PayrollReview[] @relation("UserReviews")
+  notifications   Notification[]
+  messages        Message[]       @relation("UserMessages")
+  
+  // ✅ تعديل العلاقة مع UserPermission
+  permissions     UserPermission?
+}
+
+
+// ✅ جدول صلاحيات المستخدمين
+model UserPermission {
+  id                 Int    @id @default(autoincrement())
+  userId             Int    @unique
+  user               User   @relation(fields: [userId], references: [id], onDelete: Cascade) // ✅ تحديد العلاقة هنا فقط
+  canManageUsers     Boolean @default(false)
+  canManagePayrolls  Boolean @default(false)
+  canManageInvoices  Boolean @default(false)
+  canManageClients   Boolean @default(false)
+  canManageBranches  Boolean @default(false)
+  canManageSettings  Boolean @default(false)
+}
+
+
+// ✅ جدول فروع الشركة
+model CompanyBranch {
+  id        Int      @id @default(autoincrement())
+  nameAr    String
+  nameEn    String
+  location  String
+  isDeleted Boolean  @default(false) // ✅ دعم Soft Delete
+  createdAt DateTime @default(now())
+  employees User[]   @relation("UserCompanyBranch")
+}
+
+// ✅ جدول العملاء
+model Client {
+  id                    Int      @id @default(autoincrement())
+  nameAr                String
+  nameEn                String
+  phone                 String   @unique
+  activity              String
+  commercialRegistration String   @unique
+  taxNumber             String   @unique
+  email                 String?  @unique
+  address               String?  @default("")
+  city                  String?  @default("")
+  contractDate          DateTime?
+  isActive              Boolean  @default(true)
+  dueAmount             Decimal  @default(0.0)
+  guardCount            Int      @default(0)
+  additionalNotes       String?  @default("")
+  createdAt             DateTime @default(now())
+
+  branches              ClientBranch[]
+  invoices              Invoice[]
+}
+
+// ✅ جدول فروع العملاء
+model ClientBranch {
+  id        Int       @id @default(autoincrement())
+  nameAr    String
+  nameEn    String
+  location  String
+  clientId  Int
+  client    Client    @relation(fields: [clientId], references: [id])
+  createdAt DateTime  @default(now())
+  payrolls  Payroll[]
+}
+
+// ✅ جدول كشوف الرواتب
+model Payroll {
+  id             Int          @id @default(autoincrement())
+  employeeId     Int
+  employee       User         @relation(fields: [employeeId], references: [id])
+  
+  filePath       String
+  fileUrl        String?
+  
+  clientBranchId Int
+  clientBranch   ClientBranch @relation(fields: [clientBranchId], references: [id])
+  
+  periodFrom     DateTime
+  periodTo       DateTime
+  clientPaid     Boolean
+  notes          String?
+
+  status         String       @default("قيد المراجعة")
+  createdAt      DateTime     @default(now())
+
+  reviews        PayrollReview[]
+
+  transferAmount  Decimal?
+  transferDate    DateTime?
+}
+
+// ✅ جدول مراجعة كشوف الرواتب
+model PayrollReview {
+  id         Int      @id @default(autoincrement())
+  payrollId  Int
+  payroll    Payroll  @relation(fields: [payrollId], references: [id])
+  reviewerId Int
+  reviewer   User     @relation(fields: [reviewerId], references: [id], name: "UserReviews")
+  role       UserRole
+  status     String
+  comments   String?
+  fileUrl    String?
+  createdAt  DateTime @default(now())
+}
+
+// ✅ جدول الإشعارات
+model Notification {
+  id        Int      @id @default(autoincrement())
+  messageAr String
+  messageEn String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  isRead    Boolean  @default(false) // ✅ حالة الإشعار (مقروء / غير مقروء)
+  createdAt DateTime @default(now())
+}
+
+// ✅ جدول الدردشة والجروبات
+model ChatGroup {
+  id        Int       @id @default(autoincrement())
+  nameAr    String
+  nameEn    String
+  createdAt DateTime  @default(now())
+  members   User[]    @relation("UserChatGroups")
+  messages  Message[] @relation("ChatGroupMessages")
+}
+
+// ✅ جدول الرسائل
+model Message {
+  id        Int        @id @default(autoincrement())
+  content   String
+  senderId  Int
+  sender    User       @relation(fields: [senderId], references: [id], name: "UserMessages")
+  groupId   Int?
+  group     ChatGroup? @relation(fields: [groupId], references: [id], name: "ChatGroupMessages")
+  createdAt DateTime   @default(now())
+}
+
+// ✅ جدول إعدادات السيستم
+model SystemSettings {
+  id              Int      @id @default(autoincrement())
+  companyNameAr   String
+  companyNameEn   String
+  logoUrl         String
+  defaultLanguage String
+  createdAt       DateTime @default(now())
+}
+
+// ✅ جدول الفواتير
+model Invoice {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  month       Int      
+  year        Int      
+  amount      Decimal  
+  isPaid      Boolean  @default(false) 
+  createdAt   DateTime @default(now())
+}

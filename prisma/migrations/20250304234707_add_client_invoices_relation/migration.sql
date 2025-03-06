@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `client` ALTER COLUMN `address` DROP DEFAULT,
+    ALTER COLUMN `city` DROP DEFAULT,
+    ALTER COLUMN `contractDate` DROP DEFAULT;
